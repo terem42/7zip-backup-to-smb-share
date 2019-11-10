@@ -1,0 +1,6 @@
+backup/*
+smb_credentials
+backup_archive_credentials
+include_list.txt
+exclude_list.txt
+
