@@ -4,9 +4,9 @@
 (c) Andrey Prokopenko job@terem.fr
 fully automatic, incremental documents backup script for SMB shares, used for cron tasks
 based on 7zip command line utility, with full backup plus diffs per each day
-IMPORTANT NOTE: file permissions are NOT preserved, hence this script is not suitable 
+IMPORTANT NOTE: file permissions are NOT preserved, hence this script is not suitable
 for backing permission sensitive apps, it's primary purpose is to have incremental backups on media files
-such as documents, images etc. 
+such as documents, images etc.
 after the backup archive creation, script purges backup files older than predefined keep interval
 entire archive including files list is encrypted with password
 optionally, if you want to be absolutely sure about remote backup integrity
@@ -17,13 +17,13 @@ entire file is piped in and checksummed, unfortunately unlike SSH, for SMB share
 so we have to pull in and checksum entire file
 how strategy for automatic backup works:
 script first checks for full backup, dated later than DAYS_TO_KEEP_BACKUP
-if there is none, makes full backup, then deletes files older than DAYS_TO_KEEP_BACKUP days   
-from local and remote share folders 
+if there is none, makes full backup, then deletes files older than DAYS_TO_KEEP_BACKUP days
+from local and remote share folders
 if there is full backup present with date later than DAYS_TO_KEEP_BACKUP
 then make diff backup
-for resilience against network failures, script attempts to repeat listing, upload and 
+for resilience against network failures, script attempts to repeat listing, upload and
 (optionally, if enabled) sha256 sum calculation attempts on network and/or credentials failure with gradually increasing backoff interval
-as a precaution against accidental remote failure, after local and remote file deletion cleanup, 
+as a precaution against accidental remote failure, after local and remote file deletion cleanup,
 complete file recync is performed to ensure remote folder does contain all locally available backup files
 end_header_info
 
@@ -47,8 +47,12 @@ SMB_FOLDER=andrey/backup_notebook # remote folder on SMB share
 
 #############functions#################
 function check_and_install_packages() {
-  if dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -c "ok installed"; then
-    echo required p7zip package is missing, installing it
+  if ! dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep "ok installed" &> /dev/null; then
+    echo required  package $1 is missing, installing it
+    if [[ $(whoami) != "root" ]]; then
+     echo cannot install packages, must be root to install them
+     exit 1
+    fi
     apt-get -qq install "$1"
   fi
 }
@@ -68,7 +72,7 @@ function one_run_copy() {
 }
 
 function check_programs_presence() {
-  for pr in which smbclient 7za sha256sum; do    
+  for pr in which smbclient 7za sha256sum; do
     if ! which $pr >/dev/null; then
       echo "program $pr not reachable, please install packages via apt then run the script again"
       echo required packages are samba-client, p7zip-full, sha256sum
@@ -111,7 +115,7 @@ function sync_local_to_smb_share() {
     while true; do
       remote_ls_successful=0
       remote_size_eq_to_local=0
-      remote_sha256sum_eq_to_local=0       
+      remote_sha256sum_eq_to_local=0
       if smb_ls_output=$(smbclient -A "${SMB_CREDENTIALS_FILE}" ${SMB_SHARE} --directory "${SMB_FOLDER}" -c "ls ${fname_local##*/}" 2>/dev/null); then
         while read -r line_ls_remote; do
           if [[ $line_ls_remote =~ ^.*(backup_data_[0-9]{4,4}-[0-9]{2,2}-[0-9]{2,2}-[0-9]{2,2}-[0-9]{2,2}-[0-9]{2,2}-(diff|full)\.7z(\.sha256sum)?)[[:space:]]+[A-Za-z][[:space:]]+([0-9]{1,100})[[:space:]]+([A-Za-z]{3,3}[[:space:]]+[A-Za-z]{3,3}[[:space:]]+[0-9]{1,2}[[:space:]]+[0-9]{1,2}\:[0-9]{2,2}\:[0-9]{2,2}[[:space:]]+[0-9]{4,4})[[:space:]]*$ ]]; then
@@ -145,7 +149,7 @@ function sync_local_to_smb_share() {
           && (( VERIFY_ONLY_UPLOADED_ON_THIS_RUN_FILES == 0 || ( VERIFY_ONLY_UPLOADED_ON_THIS_RUN_FILES == 1 && new_file_uploaded == 1 ) )) )); then
 
        sha256_local=$(cut -d ' ' -f 1 < "${fname_local}.sha256sum" )
-        
+
         if sha256_remote=$(smbclient -A "${SMB_CREDENTIALS_FILE}" "${SMB_SHARE}" --directory "${SMB_FOLDER}" -c "get ${fname_local##*/} /dev/fd/1 " 2>/dev/null | pv -s "$fsize_remote" | sha256sum | cut -d ' ' -f 1); then
           if [[ "${sha256_remote}" == "${sha256_local}" ]]; then
             echo local sha256 sum is identical to remote file sum
@@ -199,9 +203,13 @@ cd "$BACKUP_FOLDER" || exit 1
 
 one_run_copy
 
+check_and_install_packages pv
+check_and_install_packages smbclient
+check_and_install_packages p7zip-full
+
 check_programs_presence
 
-while read -r line_creds; do  
+while read -r line_creds; do
   if [[ $line_creds =~ ^[[:space:]]*password[[:space:]]*=[[:space:]]*([^[:space:]]+)[[:space:]]*$ ]]; then
     archive_pass=${BASH_REMATCH[1]}
     break
