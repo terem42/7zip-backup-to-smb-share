@@ -246,7 +246,6 @@ if [[ -z "$bfname_full_base" ]]; then
 else
   bfname_archive="backup_data_${bfname_create_timestamp}-diff.7z"
   echo "found full backup $bfname_full_base younger than $DAYS_TO_KEEP_BACKUP, creating diff archive using it as a base"
-  
   if ! ( 7za u "${bfname_full_base}" -bt -t7z -mx=7 -mhe=on -p"${archive_pass}" -xr-@"${workdir}/${EXCLUDES_LIST_FILENAME}" \
     -ir-@"${workdir}/${INCLUDES_LIST_FILENAME}" -u- -up0q3r2x2y2z0w2!"${BACKUP_FOLDER}/${bfname_archive}"); then
     echo error while creating 7zip backup archive, aborting script execution
@@ -260,8 +259,8 @@ if ! sha256sum -b "${bfname_archive}" > "${bfname_archive}.sha256sum"; then
   exit 1
 fi
 
-for bfname in $(find "$BACKUP_FOLDER/backup_data*" 2>/dev/null | sort -r); do
-  if [[ "$bfname" =~ ^.+/backup_data_([0-9]{4,4})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-(diff|full)\.7z$ ]]; then
+for bfname in $(find "$BACKUP_FOLDER" 2>/dev/null | sort -r); do
+  if [[ "$bfname" =~ ^.+/backup_data_([0-9]{4,4})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-([0-9]{2,2})-(diff|full)\.7z(.sha256sum)?$ ]]; then
     bfname_timestamp=${BASH_REMATCH[1]}${BASH_REMATCH[2]}${BASH_REMATCH[3]}${BASH_REMATCH[4]}${BASH_REMATCH[5]}${BASH_REMATCH[6]}
     bfname_type=${BASH_REMATCH[7]}
     if (( bfname_timestamp < bfname_keep_timestamp )); then
